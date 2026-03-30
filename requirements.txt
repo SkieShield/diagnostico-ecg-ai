@@ -1,0 +1,6 @@
+streamlit
+tensorflow-cpu
+neurokit2
+pandas
+numpy
+wfdb
