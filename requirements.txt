@@ -1,6 +1,7 @@
-streamlit
-tensorflow-cpu
+﻿streamlit
+tensorflow
 neurokit2
 pandas
 numpy
 wfdb
+
