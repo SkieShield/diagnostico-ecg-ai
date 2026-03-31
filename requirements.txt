@@ -4,3 +4,5 @@ neurokit2
 pandas
 numpy
 wfdb
+opencv-python-headless
+Pillow
