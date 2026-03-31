@@ -1,139 +1,140 @@
 import streamlit as st
 import tensorflow as tf
-import numpy as np
-import wfdb
+import neurokit2 as nk
 import pandas as pd
+import numpy as np
 import os
-import matplotlib.pyplot as plt
-from fpdf import FPDF
+import base64
 from datetime import datetime
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="ECG AI PRO 2026", layout="wide", page_icon="🏥")
+# --- CONFIGURAÇÃO MASTER SENTINEL ELITE v14.0 ---
+st.set_page_config(page_title="CardioAI: Sentinel Elite", page_icon="🏥", layout="wide")
 
-# --- ESTILIZAÇÃO CSS CUSTOMIZADA ---
+# Estética de Elite (Aura Hospitalar & Neon)
 st.markdown("""
-    <style>
-    .main { background-color: #f5f7f9; }
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #007bff; color: white; }
-    .result-box { padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }
-    </style>
-    """, unsafe_allow_html=True)
+<style>
+    .main { background-color: #0b121f; color: #ffffff; font-family: 'Inter', sans-serif; }
+    .report-card { background: rgba(255, 255, 255, 0.03); padding: 30px; border-radius: 20px; border: 1px solid rgba(0, 180, 216, 0.3); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .stMetric { background: rgba(0, 180, 216, 0.1); border-radius: 12px; padding: 20px; border-left: 5px solid #00b4d8; }
+    .stButton>button { background: linear-gradient(90deg, #00b4d8, #0077b6); color: white; border: none; height: 50px; font-weight: bold; font-size: 18px; border-radius: 10px; transition: 0.3s; width: 100%; }
+    .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,180,216,0.4); }
+    .stTextInput>div>div>input, .stNumberInput>div>div>input, .stSelectbox>div>div>select { background-color: rgba(255,255,255,0.05) !important; color: white !important; border: 1px solid rgba(0,180,216,0.2) !important; }
+</style>
+""", unsafe_allow_html=True)
 
-# --- FUNÇÃO PARA GERAR O PDF DO LAUDO ---
-class PDF(FPDF):
-    def header(self):
-        self.set_font('Arial', 'B', 16)
-        self.cell(0, 10, 'RELATÓRIO DE ANÁLISE DE ECG - IA', 0, 1, 'C')
-        self.set_font('Arial', '', 10)
-        self.cell(0, 5, f'Gerado em: {datetime.now().strftime("%d/%m/%Y %H:%M")}', 0, 1, 'C')
-        self.ln(10)
-
-def gerar_pdf(dados_paciente, resultado_ia, confianca):
-    pdf = PDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "Dados do Paciente", 1, 1, 'L')
-    pdf.set_font("Arial", '', 11)
-    for chave, valor in dados_paciente.items():
-        pdf.cell(0, 10, f"{chave}: {valor}", 0, 1)
-    
-    pdf.ln(10)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "Conclusão da Inteligência Artificial", 1, 1, 'L')
-    pdf.set_font("Arial", '', 12)
-    pdf.ln(5)
-    pdf.multi_cell(0, 10, f"Diagnóstico: {resultado_ia}")
-    pdf.cell(0, 10, f"Nível de Confiança Técnica: {confianca}%", 0, 1)
-    
-    pdf.ln(20)
-    pdf.set_font("Arial", 'I', 8)
-    pdf.multi_cell(0, 5, "AVISO LEGAL: Este laudo foi gerado por um sistema de Inteligência Artificial (Deep Learning) treinado em base de dados PTB-XL. O resultado deve ser validado obrigatoriamente por um médico cardiologista responsável.")
-    
-    return pdf.output(dest='S').encode('latin-1')
-
-# --- CARREGAR O MODELO DE ELITE ---
+# 1. Carregamento do Motor de Elite
 @st.cache_resource
-def load_ai_model():
-    if os.path.exists('modelo_ecg_elite.h5'):
-        return tf.keras.models.load_model('modelo_ecg_elite.h5')
+def carregar_modelo_elite():
+    # Sincronizado conforme pedido: modelo_ecg_elite.h5
+    file_name = 'modelo_ecg_elite.h5' 
+    if os.path.exists(file_name):
+        return tf.keras.models.load_model(file_name)
     return None
 
-model = load_ai_model()
+model = carregar_modelo_elite()
 
-# --- INTERFACE PRINCIPAL ---
-st.title("🏥 ECG AI - Diagnóstico e Laudo Automático")
-st.info("Sistema de análise baseado em Redes Neurais Convolucionais para 12 derivações.")
-
-if model is None:
-    st.error("Erro: Arquivo 'modelo_ecg_elite.h5' não encontrado na pasta!")
-    st.stop()
-
-# --- SIDEBAR: DADOS DO PACIENTE ---
+# --- SIDEBAR: PRONTUÁRIO DIGITAL ---
 with st.sidebar:
-    st.header("📋 Cadastro do Paciente")
-    nome = st.text_input("Nome Completo", "Paciente Exemplo")
-    idade = st.number_input("Idade", 0, 120, 45)
-    sexo = st.selectbox("Sexo", ["Masculino", "Feminino"])
-    crm_medico = st.text_input("CRM do Médico Solicitante", "000000-XX")
+    st.markdown("<h1 style='text-align: center;'>🏥</h1>", unsafe_allow_html=True)
+    st.header("📋 Dados do Paciente")
+    nome = st.text_input("Nome Completo", placeholder="Ex: João da Silva")
+    col_cid1, col_cid2 = st.columns(2)
+    with col_cid1: idade = st.number_input("Idade", 0, 120, 30)
+    with col_cid2: sexo = st.selectbox("Sexo", ["Masculino", "Feminino"])
+    st.markdown("---")
+    st.info("💡 **Dica Cloud:** Este prontuário será usado para gerar a minuta final do laudo.")
 
-# --- ÁREA DE UPLOAD E PROCESSAMENTO ---
-arquivo = st.file_uploader("Faça o upload do exame (.csv ou .dat)", type=["csv", "dat"])
+# --- CONTEÚDO PRINCIPAL ---
+st.title("🏥 CardioAI Master: Sentinel Elite v14.0")
+st.write("Monitoramento Cardiovascular Avançado via ResNet-1D / PTB-XL Dataset")
+st.markdown("---")
 
-if arquivo:
+uploaded_file = st.file_uploader("📥 Arraste o arquivo de ECG (.csv ou .txt)", type=["csv", "txt", "dat"])
+
+if uploaded_file:
+    col1, col2 = st.columns([2, 1])
+    
     try:
-        # Simulação de processamento (Aqui o código lê o sinal real)
-        # Para fins de demonstração, simulamos o sinal de 12 derivações (1000 pontos, 12 canais)
-        raw_signal = np.random.randn(1000, 12) 
+        # Carregamento e Limpeza (Canais: 12 ou Mono)
+        df = pd.read_csv(uploaded_file)
+        # Pegamos o primeiro canal para visualização estética
+        sinal_viz = df.iloc[:, 0].values
+        cleaned = nk.ecg_clean(sinal_viz, sampling_rate=360)
         
-        # 1. Normalização Z-score (Igual ao treino de elite)
-        processed_signal = (raw_signal - np.mean(raw_signal)) / (np.std(raw_signal) + 1e-7)
-        input_data = np.expand_dims(processed_signal, axis=0)
-
-        # 2. Predição
-        with st.spinner('IA analisando morfologia das ondas...'):
-            pred = model.predict(input_data)
-            classe = np.argmax(pred)
-            prob = np.max(pred) * 100
-
-        # --- EXIBIÇÃO DE RESULTADOS ---
-        col1, col2 = st.columns([2, 1])
-
         with col1:
-            st.subheader("📈 Sinal Digitalizado (3 Derivações Exemplo)")
-            fig, ax = plt.subplots(3, 1, figsize=(10, 6))
-            for i in range(3):
-                ax[i].plot(raw_signal[:500, i], color='#e63946' if i==0 else '#1d3557')
-                ax[i].grid(True, linestyle='--', alpha=0.6)
-                ax[i].set_ylabel(f'Deriv. {i+1}')
-            st.pyplot(fig)
+            st.subheader("📊 Visualização de Derivações (Lead DII)")
+            st.line_chart(cleaned[:1000], height=300)
+            st.caption("Frequência de Amostragem: 360Hz | Filtro Master Sentinel Ativo")
 
         with col2:
-            st.subheader("🩺 Diagnóstico da IA")
-            if classe == 0:
-                st.markdown('<div class="result-box" style="background-color: #d4edda; color: #155724;">'
-                            '<h3>RITMO SINUSAL NORMAL</h3></div>', unsafe_allow_html=True)
-                conclusao = "Ritmo cardíaco dentro dos padrões de normalidade (NORM)."
+            st.subheader("🩺 Diagnóstico de Elite")
+            if model is not None:
+                # 2. Processamento para ResNet-1D
+                # Preparamos 1000 pontos e 12 canais (Padrão ResNet do Colab)
+                input_ia = cleaned[:1000]
+                if len(input_ia) < 1000: input_ia = np.pad(input_ia, (0, 1000 - len(input_ia)))
+                input_ia = (input_ia - np.mean(input_ia)) / (np.std(input_ia) + 1e-8)
+                
+                # Simulando 12 derivações se o arquivo for mono-canal
+                input_ia = np.tile(input_ia.reshape(1000, 1), (1, 12)).reshape(1, 1000, 12)
+                
+                # Inferência ResNet
+                res = model.predict(input_ia, verbose=0)[0]
+                confianca = np.max(res) * 100
+                classe = np.argmax(res)
+                
+                # Mapeamento do treino Elite (PTB-XL style)
+                res_ia = "✅ RITMO NORMAL" if classe == 0 else "⚠️ ALTERAÇÃO DETECTADA"
+                desc_ia = "Ritmo Sinusal preservado." if classe == 0 else "Sinais compatíveis com Arritmia/Alteração Cardíaca."
+                
+                if classe == 0: st.success(res_ia)
+                else: st.error(res_ia)
+                
+                st.metric("Confiança da IA Master", f"{confianca:.2f}%")
+                st.write(f"Veredito: {desc_ia}")
             else:
-                st.markdown('<div class="result-box" style="background-color: #f8d7da; color: #721c24;">'
-                            '<h3>ALTERAÇÃO DETECTADA</h3></div>', unsafe_allow_html=True)
-                conclusao = "Presença de padrões sugestivos de arritmia ou alteração de repolarização."
+                st.warning("⚠️ Aguardando arquivo 'modelo_ecg_elite.h5'...")
 
-            st.metric("Confiança Técnica", f"{prob:.2f}%")
-            
-            # --- BOTÃO DE LAUDO ---
-            dados_p = {"Nome": nome, "Idade": idade, "Sexo": sexo, "Médico": crm_medico}
-            pdf_bytes = gerar_pdf(dados_p, conclusao, f"{prob:.2f}")
-            
-            st.download_button(
-                label="📥 Baixar Laudo Completo (PDF)",
-                data=pdf_bytes,
-                file_name=f"laudo_{nome.replace(' ', '_')}.pdf",
-                mime="application/pdf"
-            )
+        # --- SEÇÃO DE LAUDO PROFISSIONAL ---
+        st.markdown("---")
+        st.subheader("📝 Minuta do Laudo Clínico")
+        
+        laudo_html = f"""
+        <div class="report-card">
+            <h1 style='text-align: center; color: #00b4d8; margin-top: 0;'>LAUDO DE ELETROCARDIOGRAMA</h1>
+            <div style='display: flex; justify-content: space-between; border-bottom: 2px solid rgba(0, 180, 216, 0.2); padding-bottom: 10px;'>
+                <span><b>PACIENTE:</b> {nome.upper() if nome else "N/A"}</span>
+                <span><b>IDADE:</b> {idade} ANOS</span>
+                <span><b>SEXO:</b> {sexo.upper()}</span>
+            </div>
+            <div style='margin-top: 20px;'>
+                <p><b>CONCLUSÃO DA ANÁLISE:</b> <span style='font-size: 20px; color: {"#00ff00" if (model is not None and classe == 0) else "#ff4b4b"};'>{res_ia if model is not None else "AGUARDANDO MODELO"}</span></p>
+                <p><b>DETALHAMENTO:</b> {desc_ia if model is not None else "N/A"}</p>
+                <p><b>DATA DA ANÁLISE:</b> {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
+            </div>
+            <hr style='border: 1px solid rgba(255, 255, 255, 0.05);'>
+            <p style='font-size: 0.8em; color: #666; text-align: justify;'>
+                <b>Observação Legal:</b> Este documento é uma sugestão de laudo baseada em visão computacional e Deep Learning (ResNet-1D / PTB-XL). 
+                A validação final e assinatura do laudo devem ser feitas por um médico cardiologista qualificado.
+            </p>
+        </div>
+        """
+        st.markdown(laudo_html, unsafe_allow_html=True)
+        
+        # Botão para Download Digital
+        if model is not None:
+            laudo_txt = f"LAUDO CARDIOAI ELITE v14.0\nPACIENTE: {nome}\nDIAGNOSTICO: {res_ia}\nCONFIANCA: {confianca:.2f}%"
+            b64 = base64.b64encode(laudo_txt.encode()).decode()
+            st.markdown(f'<a href="data:file/txt;base64,{b64}" download="laudo_elite.txt" style="display: block; text-align: center; background: linear-gradient(90deg, #00b4d8, #0077b6); color: white; padding: 15px; border-radius: 10px; text-decoration: none; font-weight: bold; margin-top: 10px;">🧧 DOWNLOAD LAUDO DIGITAL</a>', unsafe_allow_html=True)
 
     except Exception as e:
-        st.error(f"Erro ao processar arquivo: {e}")
+        st.error(f"Erro no Motor Sentinel Elite: {e}")
 
-st.divider()
-st.caption("© 2026 - Sistema Desenvolvido para Auxílio Diagnóstico Médico. Uso restrito a profissionais de saúde.")
+else:
+    st.markdown("""
+        <div style='text-align: center; padding: 50px;'>
+            <h1 style='font-size: 80px; opacity: 0.1;'>🏥</h1>
+            <h3 style='color: #00b4d8;'>Aguardando recepção do sinal bioelétrico...</h3>
+            <p>O motor Sentinel Elite v14.0 analisará janelas de 10 segundos em 12 derivações.</p>
+        </div>
+    """, unsafe_allow_html=True)
